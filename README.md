@@ -6,6 +6,7 @@ Auto generate typed dicts.
 - Nested dictionaries
 - Dictionaries with Lists if the items are of same type
 - Any level of nesting as long as list items are of same type
+- None values default to `Optional[Any]`
 
 ## Usage:
 ```
