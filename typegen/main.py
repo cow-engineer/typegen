@@ -5,9 +5,8 @@ import argparse
 import tempfile
 import subprocess
 from pprint import pformat
-from time import sleep
 from typegen.generate import generate_ordered_typed_dict, save_text
-
+from rich import print
 
 class TypeGenCli():
     def __init__(self, args):
@@ -43,6 +42,9 @@ class TypeGenCli():
         sys.path.pop(0)
 
         return variable_value
+   
+    def print_failure_msg(self):
+        print("Oops, type creation did not pass tests. Consider reporting it: [link=https://github.com/pestosoftware/typegen/issues]Create Issue[/link]")
 
     def pytype_test(self,path):
         result = subprocess.run(['pytype', path])
@@ -66,9 +68,12 @@ def main():
     parser.add_argument('-t', '--type-name', type=str, required=True, help='Name for the type')
     parser.add_argument('-o', '--output', type=str, default="", help='Path to the output file (default: <name of variable>.py')
     args = parser.parse_args()
+    
     cli = TypeGenCli(args)
-    return cli.create_type_file()
     
+    result = cli.create_type_file()
     
-if __name__ == "__main__":
-    sys.exit(main())
+    if result != 0:
+        cli.print_failure_msg()
+        
+    sys.exit(result)

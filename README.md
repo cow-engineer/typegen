@@ -1,12 +1,19 @@
 # typegen Is a Typed Dict Generator
-Auto generate typed dicts.
 
 ## What it works for?
 - Basic dictionaries 
 - Nested dictionaries
 - Dictionaries with Lists if the items are of same type
 - Any level of nesting as long as list items are of same type
-- None values default to `Optional[Any]`
+- NoneType values default to `Optional[Any]`
+
+## When it fails
+Each generation gets tested by pytype. In the case it fails it will let you know and provide a link to [typegen Issues](https://github.com/pestosoftware/typegen/issues).
+### In many cases of failure:
+
+It created the type, but didn't import something needed like a datetime. 
+
+I'm looking for a clever way to handle the importing, but this should be a quick fix for now.
 
 ## Usage:
 ```
@@ -76,3 +83,6 @@ class FishType(TypedDict):
     fish: Fish
 ```
 
+## Maintenance
+
+I will work to patch big issues with generating TypedDicts but will not expand the scope of the project for now.
