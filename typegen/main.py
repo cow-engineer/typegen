@@ -1,49 +1,82 @@
-def save_text(file, text):
-    with open(file, "w", encoding="utf-8") as f:
-        f.write(text)
-        f.close()
-    return file
+import sys
+import os
+import importlib
+import argparse
+import tempfile
+import subprocess
+from pprint import pformat
+from time import sleep
+from typegen.generate import generate_ordered_typed_dict, save_text
 
-def generate_ordered_typed_dict(obj: dict, class_name: str = "RootTypedDict") -> str:
-    if not isinstance(obj, dict):
-        raise ValueError("Expected a dictionary as input.")
+parser = argparse.ArgumentParser(description="Import a variable from a file.")
+parser.add_argument('-f', '--file', type=str, required=True, help='Path to the python file (without .py extension)')
+parser.add_argument('-v', '--var', type=str, required=True, help='Variable name in the file')
+parser.add_argument('-t', '--type-name', type=str, required=True, help='Name for the type')
+parser.add_argument('-o', '--output', type=str, default="", help='Path to the output file (default: <name of variable>.py')
 
-    pending_dicts = [(obj, class_name)]
-    processed_dicts = {}
-    output_lines = []
+args = parser.parse_args()
 
-    while pending_dicts:
-        current_dict, current_class_name = pending_dicts.pop(0)  # Use pop(0) to maintain order
-        processed_dicts[str(current_dict)] = current_class_name
+def import_variable(file_path, variable_name):
+    # Extract directory and file/module name from the path
+    dir_name, file_name = os.path.split(file_path)
+    module_name, _ = os.path.splitext(file_name)
 
-        class_definition = []
-        class_definition.append(f"class {current_class_name}(TypedDict):\n")
+    # Add the directory to sys.path
+    sys.path.insert(0, dir_name or '.')
 
-        for key, value in current_dict.items():
-            if isinstance(value, dict):
-                if str(value) in processed_dicts:
-                    nested_class_name = processed_dicts[str(value)]
-                else:
-                    nested_class_name = f"{key[0].upper()}{key[1:]}"
-                    pending_dicts.append((value, nested_class_name))
-                class_definition.append(f"    {key}: {nested_class_name}\n")
-            elif isinstance(value, list) and value:
-                if isinstance(value[0], dict):
-                    list_dict_name = f"{key[0].upper()}{key[1:]}List"
-                    pending_dicts.append((value[0], list_dict_name))
-                    class_definition.append(f"    {key}: List[{list_dict_name}]\n")
-                else:
-                    list_type = type(value[0]).__name__
-                    class_definition.append(f"    {key}: List[{list_type}]\n")
-            else:
-                type_name = type(value).__name__
-                class_definition.append(f"    {key}: {type_name}\n")
+    # Dynamically import the module
+    module = importlib.import_module(module_name)
 
-        class_definition.append("\n")
-        output_lines = class_definition + output_lines  # Add new class definitions to the start
+    # Get the variable's value
+    variable_value = getattr(module, variable_name, None)
 
-    # Prepending the import statement to the start of the generated code
-    class_str = "from typing import TypedDict, List, Optional, Any\n\n" + ''.join(output_lines)
-    class_str = class_str.replace('NoneType', 'Optional[Any]')
-    save_text(f"{class_name}.py", class_str)
-    return class_str
+    if variable_value is None:
+        print(f"Variable {variable_name} not found in {file_name}")
+        quit()
+
+    # Remove the directory from sys.path
+    sys.path.pop(0)
+
+    return variable_value
+
+
+def pytype_test(path):
+    result = subprocess.run(['pytype', path])
+    return result.returncode
+
+def run_test(input_dict, type_file_path, type_name):
+    test_import_str = f'from {type_file_path.replace("/", ".").replace(".py", "")} import {type_name}\n\n'
+    test_obj_str = f"test_obj: {type_name} = {pformat(input_dict, indent=4)}\n"
+    test_file_str = test_import_str + test_obj_str
+
+    # Use the tempfile module to create a temporary directory
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        test_file_path = os.path.join(tmpdirname, f"test_{type_name}_type.py")
+        save_text(test_file_path, test_file_str)
+        return pytype_test(test_file_path)
+    
+# def pytype_test(path):
+#     pass 
+
+# def create_test(input_dict, type_file_path, type_name):
+#     test_import_str = f'from {type_file_path.replace("/",".").replace(".py","")} import {type_name}\n\n'
+#     test_obj_str = f"test_obj: {type_name} = {pformat(input_dict, indent=4)}\n"
+#     test_file_str = test_import_str + test_obj_str
+#     save_text(tests/test_{type_name}_type.py", test_file_str)
+#     pytype_test(f"tests/test_{type_name}_type.py")
+
+def main():
+    input_dict = import_variable(args.file, args.var)
+    output = args.output if args.output else None
+    print(f"Creating type {args.type_name} {f'at path: {output}' if output else ''}")
+
+    file_path, type_name = generate_ordered_typed_dict(input_dict, args.type_name, output)
+    print(f"Creation complete")
+
+    print(f"Running pytype test")
+    results = run_test(input_dict, file_path, type_name)
+    
+    return results
+    
+if __name__ == "__main__":
+    sys.exit(main())

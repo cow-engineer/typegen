@@ -4,10 +4,22 @@ version = "0.1.0"
 description = ""
 authors = ["Thomas Staats <thomas.staats443@gmail.com>"]
 readme = "README.md"
+packages = [
+    { include = "typegen" },
+    { include = "tests" },
+    { include = "out" }
+]
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = ">=3.10,<3.11"
 
+[tool.poetry.group.dev.dependencies]
+black = "^22.10.0"
+flake8 = "^5.0.4"
+pytype = "^2023.8.31"
+
+[tool.poetry.scripts]
+typegen = "typegen.main:main"
 
 [build-system]
 requires = ["poetry-core"]
